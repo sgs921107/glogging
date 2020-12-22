@@ -8,6 +8,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// 起别名
+type (
+	// Fields logrus fields
+	Fields = logrus.Fields
+)
+
 // Logging logging
 type Logging interface{
 	GetLogger()	*logrus.Logger
