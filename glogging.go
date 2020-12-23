@@ -3,6 +3,7 @@ package glogging
 import (
 	"os"
 	"strings"
+	"time"
 
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/sirupsen/logrus"
@@ -12,6 +13,8 @@ import (
 type (
 	// Fields logrus fields
 	Fields = logrus.Fields
+	// Logger logrus logger
+	Logger = logrus.Logger
 )
 
 // Logging logging
@@ -64,14 +67,35 @@ func (l *log) setFormater(logger *logrus.Logger) {
 	}
 }
 
+// cratePattern create filename pattern
+func (l *log) createPattern() string {
+	var p string
+	duration := l.options.RotationTime
+	switch {
+	case duration < time.Hour:
+		p = ".%Y%m%d%H%M"
+	case duration < time.Hour * 24:
+		p = ".%Y%m%d%H"
+	case duration >= time.Hour * 24:
+		p = ".%Y%m%d"
+	default:
+		p = ".%Y%m%d%H"
+	}
+	return p
+}
+
+// setOutPut set log output
 func (l *log) setOutPut(logger *logrus.Logger) {
 	filePath := l.options.FilePath
 	if filePath == "" {
 		logger.SetOutput(os.Stdout)
 		return
 	}
+	if l.options.RotationMaxAge != 0 && l.options.RotationMaxAge < l.options.RotationTime {
+		l.options.RotationMaxAge = l.options.RotationTime
+	}
 	writer, err := rotatelogs.New(
-		filePath+".%Y%m%d%H%M",
+		filePath+l.createPattern(),
 		rotatelogs.WithLinkName(filePath),
 		rotatelogs.WithRotationTime(l.options.RotationTime),
 		rotatelogs.WithMaxAge(l.options.RotationMaxAge),
@@ -85,7 +109,7 @@ func (l *log) setOutPut(logger *logrus.Logger) {
 }
 
 // 对logger进行配置
-func (l *log) initLogger(logger *logrus.Logger) {
+func (l *log) initLogger(logger *Logger) {
 	// 配置日志等级
 	l.setLoggerLevel(logger)
 	// 配置日志格式
