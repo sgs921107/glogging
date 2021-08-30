@@ -7,8 +7,8 @@ import (
 )
 
 func main() {
-	logging := glogging.NewLogging(&glogging.Options{
-		Level: "debug",
+	logging := glogging.NewLogrusLogging(glogging.Options{
+		Level: "info",
 		FilePath: "./log.log",
 		RotationTime: time.Minute,
 		RotationMaxAge: time.Minute * 3,
