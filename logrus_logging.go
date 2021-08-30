@@ -1,8 +1,8 @@
 package glogging
 
 import (
-	"strings"
 	"sync"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -17,6 +17,7 @@ type (
 
 // LogrusLogging logging
 type LogrusLogging interface{
+	BaseLogging
 	GetLogger()	*LogrusLogger
 }
 
@@ -75,7 +76,7 @@ func (l *logrusLog) initLogger() {
 	// 配置日志格式
 	l.setFormatter()
 	// set output
-	l.logger.SetOutput(l.output())
+	l.logger.SetOutput(l.Output())
 	if l.options.NoLock {
 		l.logger.SetNoLock()
 	}

@@ -17,6 +17,7 @@ type (
 
 // ZapLogging	zap logging
 type ZapLogging interface {
+	BaseLogging
 	GetLogger()	*ZapLogger
 	GetSugaredLogger() *ZapSugaredLogger
 	Sync()
@@ -94,7 +95,7 @@ func (l zapLog) encoder() zapcore.Encoder {
 
 // create zap writer
 func (l zapLog) writer() zapcore.WriteSyncer {
-	return zapcore.AddSync(l.output())
+	return zapcore.AddSync(l.Output())
 }
 
 // Sync	刷新内容
