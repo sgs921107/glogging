@@ -1,11 +1,21 @@
 package glogging
 
 import (
-	"sync"
-	"strings"
 	"go.uber.org/zap"
+	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
+	"strings"
+	"sync"
 )
+
+type UTCEncoder struct {
+	zapcore.Encoder
+}
+
+func (e *UTCEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
+	ent.Time = ent.Time.UTC()
+	return e.Encoder.EncodeEntry(ent, fields)
+}
 
 // 起别名
 type (
@@ -18,7 +28,7 @@ type (
 // ZapLogging	zap logging
 type ZapLogging interface {
 	BaseLogging
-	GetLogger()	*ZapLogger
+	GetLogger() *ZapLogger
 	GetSugaredLogger() *ZapSugaredLogger
 	Sync()
 }
@@ -26,15 +36,15 @@ type ZapLogging interface {
 // ZapLog	zap log
 type zapLog struct {
 	baseLog
-	once			sync.Once
-	logger 			*ZapLogger
-	sugaredOnce		sync.Once
-	sugaredLogger	*ZapSugaredLogger
+	once          sync.Once
+	logger        *ZapLogger
+	sugaredOnce   sync.Once
+	sugaredLogger *ZapSugaredLogger
 }
 
 // GetLogger  获取一个zap的logger
 func (l *zapLog) GetLogger() *ZapLogger {
-	l.once.Do(func(){
+	l.once.Do(func() {
 		zapCore := zapcore.NewCore(l.encoder(), l.writer(), l.level())
 		l.logger = zap.New(zapCore, zap.AddCaller())
 		zap.ReplaceGlobals(l.logger)
@@ -52,7 +62,7 @@ func (l *zapLog) GetSugaredLogger() *ZapSugaredLogger {
 }
 
 // create zap log level
-func (l zapLog) level() zapcore.LevelEnabler {
+func (l *zapLog) level() zapcore.LevelEnabler {
 	switch strings.ToUpper(l.options.Level) {
 	case "DEBUG":
 		return zapcore.DebugLevel
@@ -75,26 +85,38 @@ func (l zapLog) level() zapcore.LevelEnabler {
 }
 
 // create zap encoder
-func (l zapLog) encoder() zapcore.Encoder {
+func (l *zapLog) encoder() zapcore.Encoder {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	// 格式时间
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(l.options.TimeFormater)
+	encoderConfig.CallerKey = "file"
+	encoderConfig.TimeKey = "time"
 	// 大写形式显示日志等级
 	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-	// 详细展示调用者
-	encoderConfig.EncodeCaller = zapcore.FullCallerEncoder
+	// 默认展示简短的调用者信息
+	if l.options.Caller == "full" {
+		encoderConfig.EncodeCaller = zapcore.FullCallerEncoder
+	} else {
+		encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	}
+	var encoder zapcore.Encoder
 	switch strings.ToUpper(l.options.Formatter) {
 	case "TEXT":
 		// 文本格式
-		return zapcore.NewConsoleEncoder(encoderConfig)
+		encoder = zapcore.NewConsoleEncoder(encoderConfig)
 	default:
 		// json格式
-		return zapcore.NewJSONEncoder(encoderConfig)
+		encoder = zapcore.NewJSONEncoder(encoderConfig)
+	}
+	if l.options.UseUTC {
+		return &UTCEncoder{encoder}
+	} else {
+		return encoder
 	}
 }
 
 // create zap writer
-func (l zapLog) writer() zapcore.WriteSyncer {
+func (l *zapLog) writer() zapcore.WriteSyncer {
 	return zapcore.AddSync(l.Output())
 }
 

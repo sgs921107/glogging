@@ -1,11 +1,23 @@
 package glogging
 
 import (
-	"sync"
+	"fmt"
+	"path"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
+
+type UTCFormater struct {
+	logrus.Formatter
+}
+
+func (f UTCFormater) Format(e *logrus.Entry) ([]byte, error) {
+	e.Time = e.Time.UTC()
+	return f.Formatter.Format(e)
+}
 
 // 起别名
 type (
@@ -16,16 +28,16 @@ type (
 )
 
 // LogrusLogging logging
-type LogrusLogging interface{
+type LogrusLogging interface {
 	BaseLogging
-	GetLogger()	*LogrusLogger
+	GetLogger() *LogrusLogger
 }
 
 // Log log
 type logrusLog struct {
 	baseLog
-	logger	*LogrusLogger
-	once	sync.Once
+	logger *LogrusLogger
+	once   sync.Once
 }
 
 // getLogger 获取一个logger
@@ -61,11 +73,30 @@ func (l *logrusLog) setLoggerLevel() {
 
 // setFormater set log level
 func (l *logrusLog) setFormatter() {
+	CallerPrettyfier := func(frame *runtime.Frame) (function string, file string) {
+		filePath := frame.File
+		if l.options.Caller != "full" {
+			filePath = path.Base(frame.File)
+		}
+		return "", fmt.Sprintf("%s:%d", filePath, frame.Line)
+	}
+	var formater logrus.Formatter
 	switch strings.ToUpper(l.options.Formatter) {
 	case "TEXT":
-		l.logger.SetFormatter(&logrus.TextFormatter{})
+		formater = &logrus.TextFormatter{
+			CallerPrettyfier: CallerPrettyfier,
+			TimestampFormat:  l.options.TimeFormater,
+		}
 	default:
-		l.logger.SetFormatter(&logrus.JSONFormatter{})
+		formater = &logrus.JSONFormatter{
+			CallerPrettyfier: CallerPrettyfier,
+			TimestampFormat:  l.options.TimeFormater,
+		}
+	}
+	if l.options.UseUTC {
+		l.logger.SetFormatter(&UTCFormater{formater})
+	} else {
+		l.logger.SetFormatter(formater)
 	}
 }
 
@@ -73,6 +104,8 @@ func (l *logrusLog) setFormatter() {
 func (l *logrusLog) initLogger() {
 	// 配置日志等级
 	l.setLoggerLevel()
+	// 输出调用者信息
+	l.logger.SetReportCaller(true)
 	// 配置日志格式
 	l.setFormatter()
 	// set output
@@ -80,7 +113,6 @@ func (l *logrusLog) initLogger() {
 	if l.options.NoLock {
 		l.logger.SetNoLock()
 	}
-	l.logger.SetReportCaller(true)
 }
 
 // NewLogrusLogging 生成一个logging
